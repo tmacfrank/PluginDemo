@@ -14,3 +14,6 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Plugin"
 include ':app'
+include ':placeholder_host'
+include ':placeholder_plugin'
+include ':placeholder_lib'
