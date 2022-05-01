@@ -1,6 +1,7 @@
 package com.demo.placeholder.plugin;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -13,6 +14,7 @@ import android.view.View;
 import androidx.core.content.res.ResourcesCompat;
 
 public class PluginActivity extends BaseActivity {
+    private BroadcastReceiver mReceiver;
 
 //    private DynamicReceiver mReceiver;
 
@@ -35,11 +37,11 @@ public class PluginActivity extends BaseActivity {
                 startService(new Intent(hostActivity, TestService.class))
         );
 
-        /*// 注册插件动态广播
+        // 注册插件动态广播
         findViewById(R.id.button_register_dynamic_broadcast).setOnClickListener((listener) -> {
             IntentFilter dynamicFilter = new IntentFilter();
             dynamicFilter.addAction("com.apk.plugin.receiver.dynamic");
-            mReceiver = new DynamicReceiver();
+            mReceiver = new TestReceiver();
             registerReceiver(mReceiver, dynamicFilter);
         });
 
@@ -48,6 +50,12 @@ public class PluginActivity extends BaseActivity {
             Intent intent = new Intent();
             intent.setAction("com.apk.plugin.receiver.dynamic");
             sendBroadcast(intent);
-        });*/
+        });
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(mReceiver);
     }
 }

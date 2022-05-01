@@ -3,8 +3,10 @@ package com.demo.placeholder.host;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.util.Log;
@@ -50,6 +52,12 @@ public class ProxyActivity extends AppCompatActivity {
         Intent intent = new Intent(this, ProxyService.class);
         intent.putExtra("className", service.getStringExtra("className"));
         return super.startService(intent);
+    }
+
+    @Override
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+        String className = receiver.getClass().getName();
+        return super.registerReceiver(new ProxyReceiver(className), filter);
     }
 
     @Override

@@ -4,9 +4,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.util.Log;
@@ -91,5 +93,20 @@ public class BaseActivity extends AppCompatActivity implements ActivityInterface
         Intent intent = new Intent();
         intent.putExtra("className", service.getComponent().getClassName());
         return hostActivity.startService(intent);
+    }
+
+    @Override
+    public Intent registerReceiver(BroadcastReceiver receiver, IntentFilter filter) {
+        return hostActivity.registerReceiver(receiver, filter);
+    }
+
+    @Override
+    public void sendBroadcast(Intent intent) {
+        hostActivity.sendBroadcast(intent);
+    }
+
+    @Override
+    public void unregisterReceiver(BroadcastReceiver receiver) {
+        hostActivity.unregisterReceiver(receiver);
     }
 }
