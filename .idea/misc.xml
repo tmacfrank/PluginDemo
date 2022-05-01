@@ -4,6 +4,9 @@
     <option name="filePathToZoomLevelMap">
       <map>
         <entry key="..\:/Code/git/PluginDemo/app/src/main/res/layout/activity_main.xml" value="0.2015625" />
+        <entry key="..\:/Code/git/PluginDemo/placeholder_host/src/main/res/layout/activity_main.xml" value="0.2015625" />
+        <entry key="..\:/Code/git/PluginDemo/placeholder_plugin/src/main/res/layout/activity_plugin.xml" value="0.25" />
+        <entry key="..\:/Code/git/PluginDemo/placeholder_plugin/src/main/res/layout/activity_test.xml" value="0.16354166666666667" />
       </map>
     </option>
   </component>

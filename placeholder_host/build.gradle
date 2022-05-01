@@ -3,12 +3,12 @@ plugins {
 }
 
 android {
-    compileSdk 32
+    compileSdkVersion 29
 
     defaultConfig {
         applicationId "com.demo.placeholder.host"
-        minSdk 23
-        targetSdk 32
+        minSdkVersion 23
+        targetSdkVersion 29
         versionCode 1
         versionName "1.0"
 
