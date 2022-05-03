@@ -24,6 +24,8 @@ public class MyApplication extends Application {
         pluginPaths.add(getFilesDir().getAbsolutePath() + File.separator + "placeholder_plugin-debug.apk");
         mDexClassLoader = PluginManager.getInstance().loadPlugins(this, pluginPaths);
         PluginManager.getInstance().loadResources(this, pluginPaths);
+        // 解析插件 apk，注册其中的静态 BroadcastReceiver
+        PluginManager.getInstance().parseApk(this, pluginPaths);
     }
 
     @Override

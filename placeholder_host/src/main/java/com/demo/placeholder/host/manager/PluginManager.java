@@ -1,6 +1,11 @@
 package com.demo.placeholder.host.manager;
 
+import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.text.TextUtils;
@@ -10,6 +15,7 @@ import java.io.File;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 import dalvik.system.DexClassLoader;
@@ -107,7 +113,7 @@ public class PluginManager {
             // 创建一个绑定 assetManager 的 Resources 对象并返回
             Resources resources = context.getResources();
             mResources = new Resources(assetManager, resources.getDisplayMetrics(), resources.getConfiguration());
-            Log.d(TAG, "loadResources: "+mResources);
+            Log.d(TAG, "loadResources: " + mResources);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -115,5 +121,70 @@ public class PluginManager {
 
     public Resources getResources() {
         return mResources;
+    }
+
+    public void parseApk(Context context, List<String> pluginPaths) {
+        for (String pluginPath : pluginPaths) {
+            if (TextUtils.isEmpty(pluginPath)) {
+                Log.e(TAG, "插件包路径不能为空！");
+                return;
+            }
+            File pluginFile = new File(pluginPath);
+            if (!pluginFile.exists()) {
+                Log.e(TAG, "插件 apk 文件不存在！");
+            }
+
+            try {
+                // 调用 PackageParser 的 parsePackage() 解析 pluginFile，得到结果 packageObject 实际是 Package
+                Class<?> packageParserClass = Class.forName("android.content.pm.PackageParser");
+                Object packageParser = packageParserClass.newInstance();
+                Method parsePackageMethod = packageParserClass.getMethod("parsePackage",
+                        File.class, int.class);
+                Object packageObject = parsePackageMethod.invoke(packageParser, pluginFile, PackageManager.GET_ACTIVITIES);
+
+                // 拿到 Package 内的 receivers 集合，可以把 receiver 理解成 AndroidManifest 中的 <receiver>
+                // 元素，解析出它的类名和 IntentFilter 信息即可手动注册这个 BroadcastReceiver
+                Field receiversField = packageObject.getClass().getDeclaredField("receivers");
+                ArrayList receivers = (ArrayList) receiversField.get(packageObject);
+
+                // ArrayList 的泛型类型是 PackageParser.Activity，不是四大组件那个 Activity，
+                // class Activity extends Component<ActivityIntentInfo>
+                // 接下来就遍历 ArrayList，对每一个 Receiver 进行手动注册
+                if (receivers != null) {
+                    // Component 的 ArrayList<II> intents 字段保存着 IntentFilter 信息，
+                    // 所以首先我们就通过反射拿到该 receiver 对象下所有的 IntentFilter
+                    Class<?> componentClass = Class.forName("android.content.pm.PackageParser$Component");
+                    Field intentsField = componentClass.getField("intents");
+
+                    // 通过 PackageParser 的 generateActivityInfo() 得到包含 receiver 类名的
+                    // ActivityInfo 对象，先构造该方法需要的参数 PackageUserState 对象
+                    Class<?> packageUsageStateClass = Class.forName("android.content.pm.PackageUserState");
+                    Class<?> userHandleClass = Class.forName("android.os.UserHandle");
+
+                    for (Object receiver : receivers) {
+                        // 尽量把公共代码提到循环外，减少反射的执行次数
+                        ArrayList<IntentFilter> intents = (ArrayList) intentsField.get(receiver); // 直接用子类对象去拿
+
+                        int userId = (int) userHandleClass.getMethod("getCallingUserId").invoke(null);
+
+                        // 反射调用 generateActivityInfo() 生成 ActivityInfo 并拿到全类名
+                        Method generateActivityInfoMethod = packageParserClass.getMethod("generateActivityInfo",
+                                receiver.getClass(), int.class, packageUsageStateClass, int.class);
+                        ActivityInfo activityInfo = (ActivityInfo) generateActivityInfoMethod.invoke(null,
+                                receiver, 0, packageUsageStateClass.newInstance(), userId);
+                        String receiverName = activityInfo.name;
+
+                        // 注册
+                        Class<?> receiverClass = context.getClassLoader().loadClass(receiverName);
+                        BroadcastReceiver broadcastReceiver = (BroadcastReceiver) receiverClass.newInstance();
+                        for (IntentFilter intentFilter : intents) {
+                            context.registerReceiver(broadcastReceiver, intentFilter);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

@@ -25,15 +25,15 @@
         android:text="Register dynamic broadcast" />
 
     <Button
-        android:id="@+id/button_register_static_broadcast"
+        android:id="@+id/button_send_dynamic_broadcast"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Register static broadcast" />
+        android:text="Send dynamic broadcast" />
 
     <Button
-        android:id="@+id/button_send_broadcast"
+        android:id="@+id/button_send_static_broadcast"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Send broadcast" />
+        android:text="Send static broadcast" />
 
 </LinearLayout>

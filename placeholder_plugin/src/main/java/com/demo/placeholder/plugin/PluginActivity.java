@@ -14,17 +14,13 @@ import android.view.View;
 import androidx.core.content.res.ResourcesCompat;
 
 public class PluginActivity extends BaseActivity {
-    private BroadcastReceiver mReceiver;
 
-//    private DynamicReceiver mReceiver;
+    private BroadcastReceiver mReceiver;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_plugin);
-
-        /*View view = LayoutInflater.from(mContext).inflate(R.layout.activity_plugin, null);
-        setContentView(view);*/
 
         // 启动插件 Activity
         findViewById(R.id.button_activity).setOnClickListener((listener) -> {
@@ -46,9 +42,16 @@ public class PluginActivity extends BaseActivity {
         });
 
         // 发送插件动态广播
-        findViewById(R.id.button_send_broadcast).setOnClickListener((listener) -> {
+        findViewById(R.id.button_send_dynamic_broadcast).setOnClickListener((listener) -> {
             Intent intent = new Intent();
             intent.setAction("com.apk.plugin.receiver.dynamic");
+            sendBroadcast(intent);
+        });
+
+        // 发送插件静态广播
+        findViewById(R.id.button_send_static_broadcast).setOnClickListener((listener) -> {
+            Intent intent = new Intent();
+            intent.setAction("com.demo.placeholder.plugin.test");
             sendBroadcast(intent);
         });
     }

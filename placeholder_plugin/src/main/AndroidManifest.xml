@@ -13,6 +13,14 @@
             android:name=".TestService"
             android:enabled="true"
             android:exported="false"></service>
+        <receiver
+            android:name=".StaticReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.demo.placeholder.plugin.test"/>
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".PluginActivity"
