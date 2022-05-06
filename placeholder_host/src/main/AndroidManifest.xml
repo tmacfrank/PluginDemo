@@ -12,10 +12,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Plugin">
+        <provider
+            android:name=".ProxyProvider"
+            android:authorities="com.demo.placeholder.host.ProxyProvider"
+            android:enabled="true"
+            android:exported="false"/>
+
         <service
             android:name=".ProxyService"
             android:enabled="true"
-            android:exported="false"></service>
+            android:exported="false" />
 
         <activity
             android:name=".ProxyActivity"

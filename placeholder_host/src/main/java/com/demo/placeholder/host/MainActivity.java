@@ -1,23 +1,18 @@
 package com.demo.placeholder.host;
 
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
+import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 
-import com.demo.placeholder.host.manager.PluginManager;
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.File;
-import java.lang.reflect.Method;
-import java.util.List;
-
-import dalvik.system.DexClassLoader;
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -26,9 +21,23 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        findViewById(R.id.btn_goto_plugin).setOnClickListener(listener -> {
-            startPlugin();
-        });
+        findViewById(R.id.btn_goto_plugin).setOnClickListener(listener -> startPlugin());
+
+        findViewById(R.id.btn_test_provider).setOnClickListener(listener -> testPluginProvider());
+    }
+
+    private void testPluginProvider() {
+        ArrayList<Uri> list = new ArrayList<>();
+        list.add(Uri.parse("content://com.demo.placeholder.host.ProxyProvider/plugin00"));
+        list.add(Uri.parse("content://com.demo.placeholder.host.ProxyProvider/plugin01"));
+
+        ContentResolver contentResolver = getContentResolver();
+        for (Uri uri : list) {
+            contentResolver.query(uri, null, null, null, null);
+            contentResolver.insert(uri, new ContentValues());
+            contentResolver.delete(uri, "", new String[]{});
+            contentResolver.update(uri, new ContentValues(), "", new String[]{});
+        }
     }
 
     private void startPlugin() {

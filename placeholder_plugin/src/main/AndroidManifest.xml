@@ -9,16 +9,30 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Plugin">
+        <!-- 插件的 provider 不定义也没事，因为宿主是通过反射拿到
+        provider 对象并调用对应的 CURD 方法的，并不影响 -->
+        <!--<provider
+            android:name=".PluginProvider1"
+            android:authorities="com.demo.placeholder.host.ProxyProvider"
+            android:enabled="true"
+            android:exported="true" />
+        <provider
+            android:name=".PluginProvider"
+            android:authorities="com.demo.placeholder.host.ProxyProvider"
+            android:enabled="true"
+            android:exported="false" />-->
+
         <service
             android:name=".TestService"
             android:enabled="true"
-            android:exported="false"></service>
+            android:exported="false" />
+
         <receiver
             android:name=".StaticReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.demo.placeholder.plugin.test"/>
+                <action android:name="com.demo.placeholder.plugin.test" />
             </intent-filter>
         </receiver>
 
