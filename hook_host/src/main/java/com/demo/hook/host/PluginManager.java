@@ -2,14 +2,20 @@ package com.demo.hook.host;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Message;
 import android.text.TextUtils;
+import android.util.ArrayMap;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
@@ -25,6 +31,7 @@ public class PluginManager {
 
     private static volatile PluginManager sPluginManager;
     private final Context mContext;
+    private boolean useLoadedApk = true;
 
     private PluginManager(Context context) {
         mContext = context.getApplicationContext();
@@ -41,7 +48,7 @@ public class PluginManager {
         return sPluginManager;
     }
 
-    public void loadPlugin(String pluginPath) {
+    public void loadPluginForHook(String pluginPath) {
         if (TextUtils.isEmpty(pluginPath)) {
             Log.e(TAG, "插件路径不能拿为空！");
         }
@@ -82,6 +89,22 @@ public class PluginManager {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // 多 DexClassLoader 方式，每个插件有一个对应的 DexClassLoader 对象
+    public ClassLoader loadPluginForLoadedApk(String pluginPath) {
+        if (TextUtils.isEmpty(pluginPath)) {
+            throw new IllegalArgumentException("插件路径不能拿为空！");
+        }
+
+        File pluginFile = new File(pluginPath);
+        if (!pluginFile.exists()) {
+            throw new IllegalArgumentException("插件包不存在！");
+        }
+
+        // 指定一个 optimizedDirectory 用以获取加载插件的 ClassLoader
+        File optDir = mContext.getDir("optDir", Context.MODE_PRIVATE);
+        return new DexClassLoader(pluginPath, optDir.getAbsolutePath(), null, mContext.getClassLoader());
     }
 
     public void hookAMS() {
@@ -174,6 +197,19 @@ public class PluginManager {
                     Intent actionIntent = intent.getParcelableExtra("actionIntent");
                     if (actionIntent != null) {
                         intentField.set(message.obj, actionIntent);
+
+                        // 如果使用 LoadedApk 方式加载插件，需要给 ActivityInfo.applicationInfo 做包名区分
+                        if (useLoadedApk) {
+                            Field activityInfoField = message.obj.getClass().getDeclaredField("activityInfo");
+                            activityInfoField.setAccessible(true);
+                            ActivityInfo activityInfo = (ActivityInfo) activityInfoField.get(message.obj);
+
+                            if (activityInfo != null) {
+                                // actionIntent.getPackage() == null 说明是插件，就要取 Component 的包名
+                                activityInfo.applicationInfo.packageName = actionIntent.getPackage() == null ?
+                                        actionIntent.getComponent().getPackageName() : actionIntent.getPackage();
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -182,4 +218,115 @@ public class PluginManager {
             return false;
         }
     };
+
+    // LoadedApk start
+
+    /**
+     * 反射执行 PackageParser 的 generateApplicationInfo() 以获取 ApplicationInfo 对象
+     */
+    private ApplicationInfo getPluginAppInfo(File pluginFile) {
+        try {
+            // 1.调用 parsePackage() 得到 PackageParser.Package 对象
+            Class<?> packageParserClass = Class.forName("android.content.pm.PackageParser");
+            Method parsePackageMethod = packageParserClass.getDeclaredMethod("parsePackage",
+                    File.class, int.class);
+            Object packageParser = packageParserClass.newInstance();
+            Object packageObject = parsePackageMethod.invoke(packageParser, pluginFile, PackageManager.GET_ACTIVITIES);
+
+            // 2.创建一个 PackageUserState 对象
+            Class<?> packageUserStateClass = Class.forName("android.content.pm.PackageUserState");
+            Object packageUserState = packageUserStateClass.newInstance();
+
+            // 3. 调用 generateApplicationInfo()
+            Class<?> packageClass = Class.forName("android.content.pm.PackageParser$Package");
+            Method generateApplicationInfoMethod = packageParserClass.getDeclaredMethod(
+                    "generateApplicationInfo", packageClass, int.class, packageUserStateClass);
+            ApplicationInfo applicationInfo = (ApplicationInfo) generateApplicationInfoMethod.invoke(
+                    null, packageObject, 0, packageUserState);
+
+            // 4.指定 applicationInfo 中的路径，设置成插件的路径
+            if (pluginFile != null) {
+                String pluginApkPath = pluginFile.getAbsolutePath();
+                applicationInfo.sourceDir = pluginApkPath;
+                applicationInfo.publicSourceDir = pluginApkPath;
+            }
+
+            return applicationInfo;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * 自定义一个 LoadedApk，其 ClassLoader 可以加载插件类
+     */
+    public void makeCustomLoadedApk(File pluginFile) {
+        try {
+            // 1.获取 ActivityThread 对象
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Method currentActivityThreadMethod = activityThreadClass.getMethod("currentActivityThread");
+            Object activityThread = currentActivityThreadMethod.invoke(null);
+
+            // 2.获取 ApplicationInfo
+            ApplicationInfo pluginAppInfo = getPluginAppInfo(pluginFile);
+
+            // 3.获取 CompatibilityInfo
+            Class<?> compatibilityInfoClass = Class.forName("android.content.res.CompatibilityInfo");
+            Field defaultField = compatibilityInfoClass.getField("DEFAULT_COMPATIBILITY_INFO");
+            Object compatibilityInfo = defaultField.get(null);
+
+            // 4.反射调用 getPackageInfoNoCheck()
+            Method getPackageInfoNoCheckMethod = activityThreadClass.getMethod("getPackageInfoNoCheck",
+                    ApplicationInfo.class, compatibilityInfoClass);
+            Object loadedApk = getPackageInfoNoCheckMethod.invoke(activityThread, pluginAppInfo, compatibilityInfo);
+
+            // 5.修改 loadedApk 中的 ClassLoader，替换成可以加载插件中类的 ClassLoader
+            ClassLoader classLoader = loadPluginForLoadedApk(pluginFile.getAbsolutePath());
+            Class<?> loadedApkClass = Class.forName("android.app.LoadedApk");
+            Field mClassLoaderField = loadedApkClass.getDeclaredField("mClassLoader");
+            mClassLoaderField.setAccessible(true);
+            mClassLoaderField.set(loadedApk, classLoader);
+
+            // 6.将 loadedApk 存入 ActivityThread 的缓存 mPackages 中
+            Field mPackagesField = activityThreadClass.getDeclaredField("mPackages");
+            mPackagesField.setAccessible(true);
+            ArrayMap mPackages = (ArrayMap) mPackagesField.get(activityThread);
+
+            // LoadedApk 是 @hide 的，所以 ArrayMap、WeakReference 无法指定泛型
+            WeakReference weakReference = new WeakReference(loadedApk);
+            mPackages.put(pluginAppInfo.packageName, weakReference);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void hookGetPackageInfo() {
+        try {
+            // 反射获取 ActivityThread 内的静态变量 sPackageManager
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Field sPackageManagerField = activityThreadClass.getDeclaredField("sPackageManager");
+            sPackageManagerField.setAccessible(true);
+            Object sPackageManager = sPackageManagerField.get(null);
+
+            Class<?> iPackageManagerClass = Class.forName("android.content.pm.IPackageManager");
+            Object proxy = Proxy.newProxyInstance(ClassLoader.getSystemClassLoader(),
+                    new Class[]{iPackageManagerClass},
+                    new InvocationHandler() {
+                        @Override
+                        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                            //
+                            if ("getPackageInfo".equals(method.getName())) {
+                                return new PackageInfo();
+                            }
+                            return method.invoke(sPackageManager, args);
+                        }
+                    });
+
+            sPackageManagerField.set(null, proxy);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    // LoadedApk end
 }
