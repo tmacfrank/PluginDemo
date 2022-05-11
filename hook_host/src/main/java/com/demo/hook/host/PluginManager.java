@@ -31,7 +31,6 @@ public class PluginManager {
 
     private static volatile PluginManager sPluginManager;
     private final Context mContext;
-    private boolean useLoadedApk = true;
 
     private PluginManager(Context context) {
         mContext = context.getApplicationContext();
@@ -48,6 +47,16 @@ public class PluginManager {
         return sPluginManager;
     }
 
+    /**
+     * BaseDexClassLoader 自己加载一个类的过程：
+     * ClassLoader.loadClass() -> BaseDexClassLoader.findClass() ->
+     * DexPathList.findClass() -> 遍历 Element[] dexElements 执行
+     * Element.findClass() 最终调用到 native 方法去寻找类
+     * <p>
+     * 所以我们的思路是将插件的 dexElements 与宿主的 dexElements 合并形成
+     * 一个新的 dexElements，在设置给宿主，这样宿主再通过 ClassLoader 加载
+     * 时就可以加载插件中的类了。
+     */
     public void loadPluginForHook(String pluginPath) {
         if (TextUtils.isEmpty(pluginPath)) {
             Log.e(TAG, "插件路径不能拿为空！");
@@ -182,7 +191,7 @@ public class PluginManager {
 
     public static final int LAUNCH_ACTIVITY = 100;
 
-    private Handler.Callback mCallback = new Handler.Callback() {
+    private final Handler.Callback mCallback = new Handler.Callback() {
         @Override
         public boolean handleMessage(@NonNull Message message) {
             if (message.what == LAUNCH_ACTIVITY) {
@@ -199,7 +208,7 @@ public class PluginManager {
                         intentField.set(message.obj, actionIntent);
 
                         // 如果使用 LoadedApk 方式加载插件，需要给 ActivityInfo.applicationInfo 做包名区分
-                        if (useLoadedApk) {
+                        if (BuildConfig.useLoadedApk) {
                             Field activityInfoField = message.obj.getClass().getDeclaredField("activityInfo");
                             activityInfoField.setAccessible(true);
                             ActivityInfo activityInfo = (ActivityInfo) activityInfoField.get(message.obj);
@@ -220,7 +229,6 @@ public class PluginManager {
     };
 
     // LoadedApk start
-
     /**
      * 反射执行 PackageParser 的 generateApplicationInfo() 以获取 ApplicationInfo 对象
      */

@@ -6,8 +6,6 @@ import java.io.File;
 
 public class MyApplication extends Application {
 
-    private boolean useLoadedApk = true;
-
     @Override
     public void onCreate() {
         super.onCreate();
@@ -17,7 +15,7 @@ public class MyApplication extends Application {
 
         pluginManager.hookAMS();
         pluginManager.hookHandler();
-        if (useLoadedApk) {
+        if (BuildConfig.useLoadedApk) {
             // 使用 LoadedApk 式的 ClassLoader 加载插件
             pluginManager.makeCustomLoadedApk(new File(pluginPath));
             pluginManager.hookGetPackageInfo();

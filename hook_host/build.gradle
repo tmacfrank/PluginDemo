@@ -20,6 +20,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+
+        debug {
+            buildConfigField("Boolean","useLoadedApk","false") //添加的
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
