@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 
 import dalvik.system.DexClassLoader;
 
@@ -190,45 +191,82 @@ public class PluginManager {
     }
 
     public static final int LAUNCH_ACTIVITY = 100;
+    public static final int EXECUTE_TRANSACTION = 159;
+
+    public static final String CLASS_NAME_LAUNCH_ACTIVITY_ITEM = "android.app.servertransaction.LaunchActivityItem";
 
     private final Handler.Callback mCallback = new Handler.Callback() {
         @Override
         public boolean handleMessage(@NonNull Message message) {
-            if (message.what == LAUNCH_ACTIVITY) {
-                try {
-                    // message.obj 实际上是一个 ActivityClientRecord，但是 @hide 的，
-                    // 我们不能直接用，只能一步直接拿 ActivityClientRecord 的 intent
-                    Field intentField = message.obj.getClass().getDeclaredField("intent");
-                    intentField.setAccessible(true);
-                    Intent intent = (Intent) intentField.get(message.obj);
+            switch (message.what) {
+                case LAUNCH_ACTIVITY:
+                    try {
+                        // message.obj 实际上是一个 ActivityClientRecord，但是 @hide 的，
+                        // 我们不能直接用，只能一步直接拿 ActivityClientRecord 的 intent
+                        Field intentField = message.obj.getClass().getDeclaredField("intent");
+                        intentField.setAccessible(true);
+                        Intent intent = (Intent) intentField.get(message.obj);
 
-                    // 之前 Hook AMS 的时候我们把真正启动插件的 Intent 放在 Extra 里了
-                    Intent actionIntent = intent.getParcelableExtra("actionIntent");
-                    if (actionIntent != null) {
-                        intentField.set(message.obj, actionIntent);
+                        // 之前 Hook AMS 的时候我们把真正启动插件的 Intent 放在 Extra 里了
+                        Intent actionIntent = intent.getParcelableExtra("actionIntent");
+                        if (actionIntent != null) {
+                            intentField.set(message.obj, actionIntent);
 
-                        // 如果使用 LoadedApk 方式加载插件，需要给 ActivityInfo.applicationInfo 做包名区分
-                        if (BuildConfig.useLoadedApk) {
-                            Field activityInfoField = message.obj.getClass().getDeclaredField("activityInfo");
-                            activityInfoField.setAccessible(true);
-                            ActivityInfo activityInfo = (ActivityInfo) activityInfoField.get(message.obj);
+                            // 如果使用 LoadedApk 方式加载插件，需要给 ActivityInfo.applicationInfo 做包名区分
+                            if (BuildConfig.useLoadedApk) {
+                                Field activityInfoField = message.obj.getClass().getDeclaredField("activityInfo");
+                                activityInfoField.setAccessible(true);
+                                ActivityInfo activityInfo = (ActivityInfo) activityInfoField.get(message.obj);
 
-                            if (activityInfo != null) {
-                                // actionIntent.getPackage() == null 说明是插件，就要取 Component 的包名
-                                activityInfo.applicationInfo.packageName = actionIntent.getPackage() == null ?
-                                        actionIntent.getComponent().getPackageName() : actionIntent.getPackage();
+                                if (activityInfo != null) {
+                                    // actionIntent.getPackage() == null 说明是插件，就要取 Component 的包名
+                                    activityInfo.applicationInfo.packageName = actionIntent.getPackage() == null ?
+                                            actionIntent.getComponent().getPackageName() : actionIntent.getPackage();
+                                }
                             }
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                    break;
+                case EXECUTE_TRANSACTION:
+                    try {
+                        // 拿到 mActivityCallbacks 列表
+                        Field mActivityCallbacksField = message.obj.getClass().getDeclaredField("mActivityCallbacks");
+                        mActivityCallbacksField.setAccessible(true);
+                        ArrayList mActivityCallbacks = (ArrayList) mActivityCallbacksField.get(message.obj);
+
+                        // 从 mActivityCallbacks 中找到 LaunchActivityItem
+                        Object launchActivityItem = null;
+                        for (Object callback : mActivityCallbacks) {
+                            if (CLASS_NAME_LAUNCH_ACTIVITY_ITEM.equals(callback.getClass().getName())) {
+                                launchActivityItem = callback;
+                            }
+                        }
+
+                        // 取出 Intent 并替换
+                        if (launchActivityItem != null) {
+                            Field mIntentField = launchActivityItem.getClass().getDeclaredField("mIntent");
+                            mIntentField.setAccessible(true);
+                            Intent intent = (Intent) mIntentField.get(launchActivityItem);
+                            Intent actionIntent = intent.getParcelableExtra("actionIntent");
+                            if (actionIntent != null) {
+                                mIntentField.set(launchActivityItem, actionIntent);
+                            }
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    break;
             }
+
             return false;
         }
     };
 
     // LoadedApk start
+
     /**
      * 反射执行 PackageParser 的 generateApplicationInfo() 以获取 ApplicationInfo 对象
      */
